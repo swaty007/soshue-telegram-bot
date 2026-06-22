@@ -1,0 +1,19 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/opt/homebrew/Cellar/php/8.5.7/bin/php",
+            "args": [
+                "/Users/oleksii/PhpstormProjects/huesos-helper-telegram/artisan",
+                "boost:mcp"
+            ]
+        },
+        "chrome-devtools": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "chrome-devtools-mcp@latest",
+                "--no-usage-statistics"
+            ]
+        }
+    }
+}
