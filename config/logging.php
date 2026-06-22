@@ -4,6 +4,7 @@ use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
+use Nutgram\Laravel\Log\NutgramFormatter;
 
 return [
 
@@ -102,6 +103,17 @@ return [
                 'stream' => 'php://stderr',
             ],
             'formatter' => env('LOG_STDERR_FORMATTER'),
+            'processors' => [PsrLogMessageProcessor::class],
+        ],
+
+        'nutgram' => [
+            'driver' => 'monolog',
+            'level' => env('LOG_LEVEL', 'debug'),
+            'handler' => StreamHandler::class,
+            'formatter' => NutgramFormatter::class,
+            'with' => [
+                'stream' => 'php://stderr',
+            ],
             'processors' => [PsrLogMessageProcessor::class],
         ],
 
