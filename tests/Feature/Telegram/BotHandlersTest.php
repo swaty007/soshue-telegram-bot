@@ -53,8 +53,16 @@ test('word trigger sends an immediate reply', function () {
     Bus::fake();
 
     config([
-        'telegram-bot.quick_reactions' => [
-            'php' => ['PHP detected. Condolences.'],
+        'telegram-quick-reactions' => [
+            [
+                'triggers' => ['php'],
+                'reactions' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'PHP detected. Condolences.',
+                    ],
+                ],
+            ],
         ],
     ]);
 
@@ -69,7 +77,7 @@ test('summary threshold dispatches summary job', function () {
 
     config([
         'telegram-bot.summary.threshold_min' => 2,
-        'telegram-bot.quick_reactions' => [],
+        'telegram-quick-reactions' => [],
     ]);
 
     $bot = app(Nutgram::class);
