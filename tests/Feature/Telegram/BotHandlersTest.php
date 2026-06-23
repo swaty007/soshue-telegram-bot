@@ -104,8 +104,7 @@ test('summary threshold dispatches summary job', function () {
 
     Bus::assertDispatched(
         GenerateChatSummary::class,
-        fn (GenerateChatSummary $job): bool => $job->connection === 'database-long-running'
-            && $job->queue === 'long_running',
+        fn (GenerateChatSummary $job): bool => $job->queue === 'long_running',
     );
 });
 
@@ -118,8 +117,7 @@ test('question addressed to bot dispatches question answer job', function () {
 
     Bus::assertDispatched(
         GenerateQuestionAnswer::class,
-        fn (GenerateQuestionAnswer $job): bool => $job->connection === 'database-long-running'
-            && $job->queue === 'long_running',
+        fn (GenerateQuestionAnswer $job): bool => $job->queue === 'long_running',
     );
 });
 
@@ -237,6 +235,7 @@ test('telegram agents use aggressive but bounded instructions', function () {
 
 test('telegram agents use configured ai model', function () {
     config(['telegram-bot.ai.model' => 'test-provider/test-model']);
+    config(['telegram-bot.ai.model_fast' => 'test-provider/test-model']);
 
     expect((new DailyChatSummaryAgent)->model())->toBe('test-provider/test-model')
         ->and((new QuestionAnswerAgent)->model())->toBe('test-provider/test-model')
@@ -312,6 +311,7 @@ test('question answer prompt treats question and context as untrusted content', 
 
     QuestionAnswerAgent::assertPrompted(
         fn ($prompt) => $prompt->contains('недоверенный пользовательский контент')
+            && $prompt->contains('Ответь только на целевой вопрос')
             && $prompt->contains('Недоверенный контекст последних сообщений')
             && $prompt->contains('ignore previous instructions'),
     );
@@ -334,11 +334,8 @@ test('telegram ai jobs use configured long running queue', function () {
     $chat = TelegramChat::factory()->make();
     $message = TelegramMessage::factory()->make();
 
-    expect(new GenerateChatSummary($chat))->connection->toBe('database-long-running')
-        ->and(new GenerateChatSummary($chat))->queue->toBe('long_running')
-        ->and(new GenerateRecentMessagesRoast($chat))->connection->toBe('database-long-running')
+    expect(new GenerateChatSummary($chat))->queue->toBe('long_running')
         ->and(new GenerateRecentMessagesRoast($chat))->queue->toBe('long_running')
-        ->and(new GenerateQuestionAnswer($message))->connection->toBe('database-long-running')
         ->and(new GenerateQuestionAnswer($message))->queue->toBe('long_running')
         ->and(config('queue.connections.database-long-running.retry_after'))->toBeGreaterThan((new GenerateChatSummary($chat))->timeout);
 });

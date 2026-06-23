@@ -138,6 +138,48 @@ test('quick reactions auto-map gif videos by filename part longer than five char
     app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
 });
 
+test('quick reactions auto-map gif folder images by filename', function () {
+    $chat = TelegramChat::factory()->create(['telegram_id' => -100123456789]);
+    $message = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 1001,
+            'text' => 'душно стало',
+        ]);
+
+    config(['telegram-quick-reactions' => []]);
+
+    Telegram::shouldReceive('sendPhoto')
+        ->once()
+        ->withArgs(fn (mixed ...$arguments): bool => $arguments[0] instanceof InputFile
+            && $arguments[0]->getFilename() === 'душно-стало.webp'
+            && $arguments[1] === -100123456789
+            && quickReactionRepliesTo($arguments, 1001));
+
+    app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
+});
+
+test('quick reactions auto-map audio by filename part longer than five characters', function () {
+    $chat = TelegramChat::factory()->create(['telegram_id' => -100123456789]);
+    $message = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 1002,
+            'text' => 'lowkick',
+        ]);
+
+    config(['telegram-quick-reactions' => []]);
+
+    Telegram::shouldReceive('sendAudio')
+        ->once()
+        ->withArgs(fn (mixed ...$arguments): bool => $arguments[0] instanceof InputFile
+            && $arguments[0]->getFilename() === '50-lowkick-eng.mp3'
+            && $arguments[1] === -100123456789
+            && quickReactionRepliesTo($arguments, 1002));
+
+    app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
+});
+
 /**
  * @param  array<int|string, mixed>  $arguments
  */
@@ -204,4 +246,26 @@ test('recent message context respects the requested limit', function () {
     expect($context)->not->toContain('first')
         ->and($context)->toContain('second')
         ->and($context)->toContain('third');
+});
+
+test('recent message context ignores messages that only contain links', function () {
+    $chat = TelegramChat::factory()->create();
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->count(4)
+        ->sequence(
+            ['telegram_message_id' => 1, 'text' => 'https://example.com', 'sent_at' => now()->subMinutes(3)],
+            ['telegram_message_id' => 2, 'text' => 't.me/huesos_helper_bot', 'sent_at' => now()->subMinutes(2)],
+            ['telegram_message_id' => 3, 'text' => 'look at this https://example.com', 'sent_at' => now()->subMinute()],
+            ['telegram_message_id' => 4, 'text' => 'https://example.com look at this', 'sent_at' => now()],
+        )
+        ->create();
+
+    $context = app(BuildRecentMessageContext::class)->handle($chat, 30);
+
+    expect($context)->not->toContain('[anonymous]: https://example.com')
+        ->and($context)->not->toContain('[anonymous]: t.me/huesos_helper_bot')
+        ->and($context)->toContain('look at this https://example.com')
+        ->and($context)->toContain('https://example.com look at this');
 });

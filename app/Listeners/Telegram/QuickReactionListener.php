@@ -3,7 +3,7 @@
 namespace App\Listeners\Telegram;
 
 use App\Events\Telegram\TelegramMessageCreated;
-use App\Telegram\Support\QuickReactionService;
+use App\Services\QuickReactionService;
 
 class QuickReactionListener
 {

@@ -5,6 +5,7 @@ namespace App\Telegram\Support;
 use App\Models\TelegramChat;
 use App\Models\TelegramMessage;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class BuildRecentMessageContext
 {
@@ -41,7 +42,16 @@ class BuildRecentMessageContext
             ->whereNotNull('text')
             ->recentForChat($chat, $limit)
             ->get()
+            ->filter(fn (TelegramMessage $message): bool => $this->hasTextBeyondLinks($message))
             ->reverse()
             ->values();
+    }
+
+    private function hasTextBeyondLinks(TelegramMessage $message): bool
+    {
+        $text = trim((string) $message->text);
+
+        return ! Str::isUrl($text, ['http', 'https'])
+            && ! (Str::contains($text, '.') && Str::isUrl("https://{$text}", ['http', 'https']));
     }
 }

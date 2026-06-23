@@ -1,26 +1,46 @@
 <?php
 
-namespace App\Telegram\Support;
+namespace App\Services;
 
 use App\Models\TelegramMessage;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Nutgram\Laravel\Facades\Telegram;
 use RuntimeException;
 use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 use SergiX44\Nutgram\Telegram\Types\Message\ReplyParameters;
+use Symfony\Component\Finder\SplFileInfo;
 
 class QuickReactionService
 {
-    private const string Text = 'text';
+    public const string Text = 'text';
 
-    private const string Photo = 'photo';
+    public const string Photo = 'photo';
 
-    private const string Video = 'video';
+    public const string Video = 'video';
 
-    private const string Audio = 'audio';
+    public const string Audio = 'audio';
 
-    private const string AutoVideoDirectory = 'images/gif';
+    private const string AutoVideoDirectory = 'images';
+
+    private const string AutoAudioDirectory = 'audio';
+
+    /**
+     * @var array<string, array<string, string>>
+     */
+    private const array AutoReactionMediaTypes = [
+        self::AutoVideoDirectory => [
+            'mp4' => self::Video,
+            'webp' => self::Photo,
+            'png' => self::Photo,
+            'gif' => self::Photo,
+        ],
+        self::AutoAudioDirectory => [
+            'mp3' => self::Audio,
+        ],
+    ];
 
     public function sendForMessage(TelegramMessage $message): void
     {
@@ -83,17 +103,39 @@ class QuickReactionService
             ->flatMap(fn (array $group): array => $this->normalizedTriggers($group['triggers']))
             ->all();
 
-        return collect(glob(resource_path(self::AutoVideoDirectory.'/*.mp4')) ?: [])
-            ->map(fn (string $path): array => [
-                'triggers' => $this->autoVideoTriggers($path),
+        return $this->autoReactionMediaFiles()
+            ->map(fn (array $media): array => [
+                'triggers' => $this->autoVideoTriggers($media['path']),
                 'reactions' => [[
-                    'type' => self::Video,
-                    'path' => self::AutoVideoDirectory.'/'.basename($path),
+                    'type' => $media['type'],
+                    'path' => $media['path'],
                 ]],
             ])
             ->reject(fn (array $group): bool => in_array(Str::lower($group['triggers'][0]), $configuredTriggers, true))
             ->values()
             ->all();
+    }
+
+    /**
+     * @return Collection<int, array{type: string, path: string}>
+     */
+    protected function autoReactionMediaFiles(): Collection
+    {
+        return collect(self::AutoReactionMediaTypes)
+            ->flatMap(
+                fn (array $mediaTypes, string $directory): array => collect($mediaTypes)
+                    ->pipe(fn (Collection $types): Collection => collect(File::allFiles(resource_path($directory)))
+                        ->filter(fn (SplFileInfo $file): bool => $types->has($file->getExtension()))
+                        ->map(fn (SplFileInfo $file): array => [
+                            'type' => $types->get($file->getExtension()),
+                            'path' => Str::of($file->getPathname())
+                                ->after(resource_path().DIRECTORY_SEPARATOR)
+                                ->replace(DIRECTORY_SEPARATOR, '/')
+                                ->toString(),
+                        ]))
+                    ->all(),
+            )
+            ->values();
     }
 
     /**
