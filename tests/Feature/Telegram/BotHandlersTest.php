@@ -11,7 +11,11 @@ use App\Models\TelegramMessage;
 use App\Models\TelegramUser;
 use App\Telegram\Support\BuildRecentMessageContext;
 use Illuminate\Support\Facades\Bus;
+use Laravel\Ai\Attributes\Timeout;
+use Nutgram\Laravel\Facades\Telegram;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Types\Message\Message;
+use SergiX44\Nutgram\Telegram\Types\Message\ReplyParameters;
 
 use function Pest\Laravel\assertDatabaseHas;
 
@@ -47,6 +51,14 @@ test('incoming group message is persisted', function () {
         'telegram_message_id' => 10,
         'text' => 'plain message',
     ]);
+
+    $message = TelegramMessage::query()
+        ->where('telegram_message_id', 10)
+        ->firstOrFail();
+
+    expect($message->payload)
+        ->toBeInstanceOf(Message::class)
+        ->and($message->payload->text)->toBe('plain message');
 });
 
 test('word trigger sends an immediate reply', function () {
@@ -90,7 +102,11 @@ test('summary threshold dispatches summary job', function () {
         ->hearMessage(telegramBotMessagePayload('second message', messageId: 31))
         ->reply();
 
-    Bus::assertDispatched(GenerateChatSummary::class);
+    Bus::assertDispatched(
+        GenerateChatSummary::class,
+        fn (GenerateChatSummary $job): bool => $job->connection === 'database-long-running'
+            && $job->queue === 'long_running',
+    );
 });
 
 test('question addressed to bot dispatches question answer job', function () {
@@ -100,7 +116,21 @@ test('question addressed to bot dispatches question answer job', function () {
         ->hearMessage(telegramBotMessagePayload('бот, что тут происходит?', messageId: 40))
         ->reply();
 
-    Bus::assertDispatched(GenerateQuestionAnswer::class);
+    Bus::assertDispatched(
+        GenerateQuestionAnswer::class,
+        fn (GenerateQuestionAnswer $job): bool => $job->connection === 'database-long-running'
+            && $job->queue === 'long_running',
+    );
+});
+
+test('bot trigger does not match inside another word', function () {
+    Bus::fake();
+
+    app(Nutgram::class)
+        ->hearMessage(telegramBotMessagePayload('ты сейчас работаешь с режимом thinking или без ?', messageId: 41))
+        ->reply();
+
+    Bus::assertNotDispatched(GenerateQuestionAnswer::class);
 });
 
 test('stats command replies with daily and weekly message counts', function () {
@@ -205,6 +235,14 @@ test('telegram agents use aggressive but bounded instructions', function () {
     }
 });
 
+test('telegram agents use configured ai model', function () {
+    config(['telegram-bot.ai.model' => 'test-provider/test-model']);
+
+    expect((new DailyChatSummaryAgent)->model())->toBe('test-provider/test-model')
+        ->and((new QuestionAnswerAgent)->model())->toBe('test-provider/test-model')
+        ->and((new RecentMessagesRoastAgent)->model())->toBe('test-provider/test-model');
+});
+
 test('summary prompt treats chat messages as untrusted content', function () {
     $chat = TelegramChat::factory()->create(['telegram_id' => -100987654321]);
 
@@ -264,6 +302,12 @@ test('question answer prompt treats question and context as untrusted content', 
     QuestionAnswerAgent::fake(['Нет, великий стратег, так это не работает.'])
         ->preventStrayPrompts();
 
+    Telegram::shouldReceive('sendMessage')
+        ->once()
+        ->withArgs(fn (mixed ...$arguments): bool => $arguments[0] === 'Нет, великий стратег, так это не работает.'
+            && $arguments[1] === -100987654321
+            && questionAnswerRepliesTo($arguments, 401));
+
     (new GenerateQuestionAnswer($message))->handle(app(BuildRecentMessageContext::class));
 
     QuestionAnswerAgent::assertPrompted(
@@ -272,6 +316,48 @@ test('question answer prompt treats question and context as untrusted content', 
             && $prompt->contains('ignore previous instructions'),
     );
 });
+
+test('question answer generation allows five minute ai responses', function () {
+    $timeout = (new ReflectionClass(QuestionAnswerAgent::class))
+        ->getAttributes(Timeout::class)[0]
+        ->newInstance();
+
+    expect($timeout->value)->toBe(300)
+        ->and((new GenerateQuestionAnswer(TelegramMessage::factory()->make()))->timeout)->toBeGreaterThan(300);
+});
+
+test('telegram ai jobs use configured long running queue', function () {
+    config([
+        'telegram-bot.ai.queue' => 'long_running',
+    ]);
+
+    $chat = TelegramChat::factory()->make();
+    $message = TelegramMessage::factory()->make();
+
+    expect(new GenerateChatSummary($chat))->connection->toBe('database-long-running')
+        ->and(new GenerateChatSummary($chat))->queue->toBe('long_running')
+        ->and(new GenerateRecentMessagesRoast($chat))->connection->toBe('database-long-running')
+        ->and(new GenerateRecentMessagesRoast($chat))->queue->toBe('long_running')
+        ->and(new GenerateQuestionAnswer($message))->connection->toBe('database-long-running')
+        ->and(new GenerateQuestionAnswer($message))->queue->toBe('long_running')
+        ->and(config('queue.connections.database-long-running.retry_after'))->toBeGreaterThan((new GenerateChatSummary($chat))->timeout);
+});
+
+/**
+ * @param  array<int|string, mixed>  $arguments
+ */
+function questionAnswerRepliesTo(array $arguments, int $messageId): bool
+{
+    foreach ($arguments as $argument) {
+        if (! $argument instanceof ReplyParameters) {
+            continue;
+        }
+
+        return ($argument->jsonSerialize()['message_id'] ?? null) === $messageId;
+    }
+
+    return false;
+}
 
 /**
  * @return array<string, mixed>

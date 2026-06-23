@@ -117,6 +117,27 @@ test('quick reactions auto-map gif videos by filename', function () {
     app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
 });
 
+test('quick reactions auto-map gif videos by filename part longer than five characters', function () {
+    $chat = TelegramChat::factory()->create(['telegram_id' => -100123456789]);
+    $message = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 1000,
+            'text' => 'аксиома',
+        ]);
+
+    config(['telegram-quick-reactions' => []]);
+
+    Telegram::shouldReceive('sendVideo')
+        ->once()
+        ->withArgs(fn (mixed ...$arguments): bool => $arguments[0] instanceof InputFile
+            && $arguments[0]->getFilename() === 'эскобар-аксиома.mp4'
+            && $arguments[1] === -100123456789
+            && quickReactionRepliesTo($arguments, 1000));
+
+    app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
+});
+
 /**
  * @param  array<int|string, mixed>  $arguments
  */
@@ -160,8 +181,8 @@ test('recent message context is built in chronological order', function () {
 
     $context = app(BuildRecentMessageContext::class)->handle($chat, 30);
 
-    expect($context)->toContain('alex: older')
-        ->and($context)->toContain('alex: newer')
+    expect($context)->toContain('[alex]: older')
+        ->and($context)->toContain('[alex]: newer')
         ->and(strpos($context, 'older'))->toBeLessThan(strpos($context, 'newer'));
 });
 

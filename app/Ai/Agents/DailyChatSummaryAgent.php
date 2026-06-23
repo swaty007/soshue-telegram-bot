@@ -3,14 +3,21 @@
 namespace App\Ai\Agents;
 
 use App\Ai\Trait\TelegramAgentInstructions;
+use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Promptable;
 use Stringable;
 
+#[Timeout(900)]
 class DailyChatSummaryAgent implements Agent
 {
     use Promptable;
     use TelegramAgentInstructions;
+
+    public function model(): string
+    {
+        return config('telegram-bot.ai.model', 'qwen/qwen3.6-27b');
+    }
 
     /**
      * Get the instructions that the agent should follow.

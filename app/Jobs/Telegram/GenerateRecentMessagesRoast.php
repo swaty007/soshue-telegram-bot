@@ -16,7 +16,7 @@ class GenerateRecentMessagesRoast implements ShouldQueue
 
     public int $tries = 2;
 
-    public int $timeout = 90;
+    public int $timeout = 330;
 
     /**
      * Create a new job instance.
@@ -24,7 +24,9 @@ class GenerateRecentMessagesRoast implements ShouldQueue
     public function __construct(
         public TelegramChat $chat,
         public int $limit = 30,
-    ) {}
+    ) {
+        $this->onQueue(config('telegram-bot.ai.queue', 'long_running'));
+    }
 
     /**
      * Execute the job.

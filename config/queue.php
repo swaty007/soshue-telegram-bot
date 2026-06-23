@@ -44,6 +44,16 @@ return [
             'after_commit' => false,
         ],
 
+        'database-long-running' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'long_running',
+            'retry_after' => 1200, // must be greater than timeout
+            'block_for' => null,
+            'after_commit' => true,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),
@@ -71,6 +81,15 @@ return [
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
             'block_for' => null,
             'after_commit' => false,
+        ],
+
+        'redis-long-running' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'long_running',
+            'retry_after' => 1200, // must be greater than timeout
+            'block_for' => null,
+            'after_commit' => true,
         ],
 
         'deferred' => [

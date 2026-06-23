@@ -21,7 +21,8 @@ class BuildRecentMessageContext
 
                 $sentAt = $message->sent_at?->format('Y-m-d H:i') ?? 'unknown time';
 
-                return "[{$sentAt}] {$sender}: {$message->text}";
+                // return "[{$sentAt}] {$sender}: {$message->text}";
+                return "[{$sender}]: {$message->text}";
             })
             ->implode(PHP_EOL);
     }

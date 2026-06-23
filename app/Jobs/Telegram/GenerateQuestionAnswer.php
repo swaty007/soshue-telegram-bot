@@ -8,6 +8,7 @@ use App\Telegram\Support\BuildRecentMessageContext;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Nutgram\Laravel\Facades\Telegram;
+use SergiX44\Nutgram\Telegram\Types\Message\ReplyParameters;
 use Stringable;
 
 class GenerateQuestionAnswer implements ShouldQueue
@@ -16,14 +17,16 @@ class GenerateQuestionAnswer implements ShouldQueue
 
     public int $tries = 2;
 
-    public int $timeout = 120;
+    public int $timeout = 330;
 
     /**
      * Create a new job instance.
      */
     public function __construct(
         public TelegramMessage $message,
-    ) {}
+    ) {
+        $this->onQueue(config('telegram-bot.ai.queue', 'long_running'));
+    }
 
     /**
      * Execute the job.
@@ -43,7 +46,11 @@ class GenerateQuestionAnswer implements ShouldQueue
 
         $response = (new QuestionAnswerAgent)->prompt($this->prompt($message->text, $context));
 
-        Telegram::sendMessage($this->responseText($response), $message->chat->telegram_id);
+        Telegram::sendMessage(
+            $this->responseText($response),
+            $message->chat->telegram_id,
+            reply_parameters: ReplyParameters::make($message->telegram_message_id),
+        );
     }
 
     protected function prompt(string $question, string $context): string

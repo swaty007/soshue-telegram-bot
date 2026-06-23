@@ -19,7 +19,7 @@ class GenerateChatSummary implements ShouldQueue
 
     public int $tries = 3;
 
-    public int $timeout = 520;
+    public int $timeout = 930;
 
     /**
      * Create a new job instance.
@@ -27,7 +27,9 @@ class GenerateChatSummary implements ShouldQueue
     public function __construct(
         public TelegramChat $chat,
         public ?int $limit = null,
-    ) {}
+    ) {
+        $this->onQueue(config('telegram-bot.ai.queue', 'long_running'));
+    }
 
     /**
      * Execute the job.

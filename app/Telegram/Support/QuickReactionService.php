@@ -85,16 +85,31 @@ class QuickReactionService
 
         return collect(glob(resource_path(self::AutoVideoDirectory.'/*.mp4')) ?: [])
             ->map(fn (string $path): array => [
-                'triggers' => [
-                    pathinfo($path, PATHINFO_FILENAME),
-                    str_replace('-', ' ', pathinfo($path, PATHINFO_FILENAME)),
-                ],
+                'triggers' => $this->autoVideoTriggers($path),
                 'reactions' => [[
                     'type' => self::Video,
                     'path' => self::AutoVideoDirectory.'/'.basename($path),
                 ]],
             ])
             ->reject(fn (array $group): bool => in_array(Str::lower($group['triggers'][0]), $configuredTriggers, true))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function autoVideoTriggers(string $path): array
+    {
+        $filename = pathinfo($path, PATHINFO_FILENAME);
+
+        return collect([$filename, str_replace('-', ' ', $filename)])
+            ->merge(
+                collect(explode('-', $filename))
+                    ->map(fn (string $part): string => trim($part))
+                    ->filter(fn (string $part): bool => Str::length($part) > 5),
+            )
+            ->unique()
             ->values()
             ->all();
     }

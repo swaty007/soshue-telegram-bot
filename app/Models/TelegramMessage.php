@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\AsTelegramMessagePayload;
 use Database\Factories\TelegramMessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use SergiX44\Nutgram\Telegram\Types\Message\Message;
 
 /**
  * @property int $id
@@ -17,7 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $telegram_message_id
  * @property int|null $messages_count
  * @property string|null $text
- * @property array<string, mixed> $payload
+ * @property Message $payload
  * @property Carbon|null $sent_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -82,7 +84,7 @@ class TelegramMessage extends Model
             'telegram_chat_id' => 'integer',
             'telegram_user_id' => 'integer',
             'telegram_message_id' => 'integer',
-            'payload' => 'array',
+            'payload' => AsTelegramMessagePayload::class,
             'sent_at' => 'datetime',
         ];
     }

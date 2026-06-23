@@ -2,7 +2,7 @@
 
 return [
     [
-        'triggers' => ['php'],
+        'triggers' => ['php', 'пхп'],
         'reactions' => [
             [
                 'type' => 'text',

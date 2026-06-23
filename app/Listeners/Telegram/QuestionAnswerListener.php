@@ -36,11 +36,33 @@ class QuestionAnswerListener
         $triggers = config('telegram-bot.questions.triggers', []);
 
         foreach ($triggers as $trigger) {
-            if (Str::contains($normalizedText, Str::lower($trigger))) {
+            if ($this->containsTrigger($normalizedText, $trigger)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    protected function containsTrigger(string $text, string $trigger): bool
+    {
+        $trigger = Str::lower(trim($trigger));
+
+        if ($trigger === '') {
+            return false;
+        }
+
+        if (Str::length($trigger) > 5) {
+            if (Str::contains($text, $trigger)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        return preg_match(
+            '/(?<![\pL\pN])'.preg_quote($trigger, '/').'(?![\pL\pN])/iu',
+            $text,
+        ) === 1;
     }
 }
