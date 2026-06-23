@@ -54,11 +54,19 @@ return [
         ],
     ],
     [
-        'triggers' => ['50 лоукиков', '50 lowkick', 'зачем ты врешь'],
+        'triggers' => ['50 лоукиков', '50 lowkick', 'зачем ты врешь', 'помошник хуесоса', '50 лоу кик'],
         'reactions' => [
             [
                 'type' => QuickReactionService::Audio,
                 'path' => 'audio/50-lowkick-eng.mp3',
+            ],
+            [
+                'type' => QuickReactionService::Audio,
+                'path' => 'audio/зачемтыврешь.ogg',
+            ],
+            [
+                'type' => QuickReactionService::Audio,
+                'path' => 'audio/50-лоукиков.ogg',
             ],
         ],
     ],

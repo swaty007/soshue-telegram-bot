@@ -21,7 +21,7 @@ test('quick reaction config uses grouped trigger and reaction format', function 
     );
 
     expect($wot['triggers'])->toContain('world of tanks')
-        ->and($wot['reactions'][1])->toMatchArray([
+        ->and($wot['reactions'][2])->toMatchArray([
             'type' => 'video',
             'path' => 'images/gif/WOT.mp4',
         ]);

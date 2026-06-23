@@ -38,7 +38,7 @@ class StatsCommand extends Command
 За последние 7 дней: {$this->totalMessages($weeklyStats)}
 {$this->formatUserBreakdown($weeklyStats)}
 
-Всего сохранено: {$totalMessagesCount}
+Всего сообщений: {$totalMessagesCount}
 TEXT);
     }
 

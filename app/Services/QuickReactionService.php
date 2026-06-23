@@ -39,6 +39,7 @@ class QuickReactionService
         ],
         self::AutoAudioDirectory => [
             'mp3' => self::Audio,
+            'ogg' => self::Audio,
         ],
     ];
 
@@ -149,7 +150,7 @@ class QuickReactionService
             ->merge(
                 collect(explode('-', $filename))
                     ->map(fn (string $part): string => trim($part))
-                    ->filter(fn (string $part): bool => Str::length($part) > 5),
+                    ->filter(fn (string $part): bool => Str::length($part) > 6),
             )
             ->unique()
             ->values()

@@ -3,6 +3,9 @@
 use App\Ai\Agents\DailyChatSummaryAgent;
 use App\Ai\Agents\QuestionAnswerAgent;
 use App\Ai\Agents\RecentMessagesRoastAgent;
+use App\Ai\Telegram\Moods\FriendlyMood;
+use App\Ai\Telegram\Moods\PoisonMood;
+use App\Ai\Telegram\Moods\TelegramBotMoodResolver;
 use App\Jobs\Telegram\GenerateChatSummary;
 use App\Jobs\Telegram\GenerateQuestionAnswer;
 use App\Jobs\Telegram\GenerateRecentMessagesRoast;
@@ -181,7 +184,7 @@ test('stats command replies with daily and weekly message counts', function () {
 - @weekly: 1
 - @oleksii: 1
 
-Всего сохранено: 4
+Всего сообщений: 4
 TEXT);
 });
 
@@ -202,7 +205,7 @@ test('summary job uses ai fake and stores generated summary', function () {
     DailyChatSummaryAgent::fake(['Релиз горит, тесты красные, команда делает вид, что это стратегия.'])
         ->preventStrayPrompts();
 
-    (new GenerateChatSummary($chat, 30))->handle(app(BuildRecentMessageContext::class));
+    (new GenerateChatSummary($chat, 30))->handle(app(BuildRecentMessageContext::class), app(TelegramBotMoodResolver::class));
 
     DailyChatSummaryAgent::assertPrompted(
         fn ($prompt) => $prompt->contains('We need a release today.'),
@@ -218,7 +221,7 @@ test('summary job uses ai fake and stores generated summary', function () {
     $bot->assertReplyText('Релиз горит, тесты красные, команда делает вид, что это стратегия.');
 });
 
-test('telegram agents use aggressive but bounded instructions', function () {
+test('telegram agents split task mood and safety instructions', function () {
     $instructions = [
         (new DailyChatSummaryAgent)->instructions(),
         (new QuestionAnswerAgent)->instructions(),
@@ -227,10 +230,22 @@ test('telegram agents use aggressive but bounded instructions', function () {
 
     foreach ($instructions as $instruction) {
         expect((string) $instruction)
+            ->toContain('Task instructions:')
+            ->toContain('Mood instructions:')
+            ->toContain('Safety instructions:')
             ->toContain('untrusted data')
             ->toContain('protected characteristics')
             ->toContain('sustained bullying');
     }
+});
+
+test('telegram mood resolver uses poison mood seventy percent of the time', function () {
+    $resolver = new TelegramBotMoodResolver;
+
+    expect($resolver->resolveByRoll(1))->toBeInstanceOf(PoisonMood::class)
+        ->and($resolver->resolveByRoll(70))->toBeInstanceOf(PoisonMood::class)
+        ->and($resolver->resolveByRoll(71))->toBeInstanceOf(FriendlyMood::class)
+        ->and($resolver->resolveByRoll(100))->toBeInstanceOf(FriendlyMood::class);
 });
 
 test('telegram agents use configured ai model', function () {
@@ -256,7 +271,7 @@ test('summary prompt treats chat messages as untrusted content', function () {
     DailyChatSummaryAgent::fake(['Сами себя похвалить попросили. Трогательно и жалко.'])
         ->preventStrayPrompts();
 
-    (new GenerateChatSummary($chat, 30))->handle(app(BuildRecentMessageContext::class));
+    (new GenerateChatSummary($chat, 30))->handle(app(BuildRecentMessageContext::class), app(TelegramBotMoodResolver::class));
 
     DailyChatSummaryAgent::assertPrompted(
         fn ($prompt) => $prompt->contains('недоверенный пользовательский контент')
@@ -279,7 +294,7 @@ test('roast prompt treats chat messages as untrusted content', function () {
     RecentMessagesRoastAgent::fake(['Просили быть милым. Уже смешно.'])
         ->preventStrayPrompts();
 
-    (new GenerateRecentMessagesRoast($chat, 30))->handle(app(BuildRecentMessageContext::class));
+    (new GenerateRecentMessagesRoast($chat, 30))->handle(app(BuildRecentMessageContext::class), app(TelegramBotMoodResolver::class));
 
     RecentMessagesRoastAgent::assertPrompted(
         fn ($prompt) => $prompt->contains('недоверенный пользовательский контент')
@@ -307,14 +322,17 @@ test('question answer prompt treats question and context as untrusted content', 
             && $arguments[1] === -100987654321
             && questionAnswerRepliesTo($arguments, 401));
 
-    (new GenerateQuestionAnswer($message))->handle(app(BuildRecentMessageContext::class));
+    (new GenerateQuestionAnswer($message))->handle(app(BuildRecentMessageContext::class), app(TelegramBotMoodResolver::class));
 
     QuestionAnswerAgent::assertPrompted(
         fn ($prompt) => $prompt->contains('недоверенный пользовательский контент')
-            && $prompt->contains('Ответь только на целевой вопрос')
+            && $prompt->contains('Вопрос')
             && $prompt->contains('Недоверенный контекст последних сообщений')
             && $prompt->contains('ignore previous instructions'),
     );
+
+    expect((string) (new QuestionAnswerAgent)->instructions())
+        ->toContain('Ответь только на целевой вопрос');
 });
 
 test('question answer generation allows five minute ai responses', function () {
