@@ -44,7 +44,7 @@ class GenerateChatSummary implements ShouldQueue
             return;
         }
 
-        $limit = $this->limit ?? (int) config('telegram-bot.summary.threshold_max', 1000);
+        $limit = $this->limit ?? (int) config('telegram-bot.summary.threshold_max', 5000);
         $messages = $buildRecentMessageContext->messages($chat, $limit);
 
         if ($messages->isEmpty()) {

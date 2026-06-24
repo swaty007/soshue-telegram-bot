@@ -16,9 +16,14 @@ class BuildRecentMessageContext
     {
         return $this->messages($chat, $limit)
             ->map(function (TelegramMessage $message): string {
-                $sender = $message->user?->username
-                    ?? $message->user?->first_name
-                    ?? 'anonymous';
+                $user = $message->user;
+                if ($user?->first_name) {
+                    $sender = trim($user->first_name.' '.($user->last_name ?? ''));
+                } elseif ($user?->username) {
+                    $sender = trim($user->username.' '.($user->last_name ?? ''));
+                } else {
+                    $sender = 'anonymous';
+                }
 
                 $sentAt = $message->sent_at?->format('Y-m-d H:i') ?? 'unknown time';
 

@@ -21,7 +21,7 @@ class ChatSummaryListener
             return;
         }
 
-        GenerateChatSummary::dispatch($chat, $messagesCount);
+        GenerateChatSummary::dispatch($chat, max($messagesCount, 50));
     }
 
     protected function messagesCountToAnalyze(TelegramChat $chat): ?int
@@ -30,14 +30,16 @@ class ChatSummaryListener
             return null;
         }
 
-        if ($chat->summaries()->whereIn('status', [
-            TelegramChatSummaryStatus::Pending->value,
-            TelegramChatSummaryStatus::Processing->value,
-        ])->exists()) {
+        if ($chat->summaries()
+            ->where('created_at', '>=', now()->subHours(1))
+            ->whereIn('status', [
+                TelegramChatSummaryStatus::Pending->value,
+                TelegramChatSummaryStatus::Processing->value,
+            ])->exists()) {
             return null;
         }
 
-        $threshold = (int) config('telegram-bot.summary.threshold_min', 500);
+        $threshold = (int) config('telegram-bot.summary.threshold_min', 200);
         $dailyWindowHours = (int) config('telegram-bot.summary.daily_window_hours', 12);
         $since = $chat->last_summary_at ?? now()->subHours($dailyWindowHours);
 
