@@ -89,6 +89,7 @@ Test at least:
 - Word triggers send immediate replies.
 - Threshold checks dispatch summary jobs.
 - AI agents are faked and never hit real providers.
+- Do not bind tests to timing, thresholds, limits, or other settings that are likely to change. If a setting must be asserted, read it from config; otherwise test the functional behavior instead.
 
 Run targeted tests:
 

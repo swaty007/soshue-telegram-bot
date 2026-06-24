@@ -10,6 +10,7 @@ use App\Jobs\Telegram\GenerateRecentMessagesRoast;
 use App\Models\TelegramChat;
 use App\Models\TelegramMessage;
 use App\Models\TelegramUser;
+use App\Telegram\Handlers\DiceHandler;
 use App\Telegram\Support\BuildRecentMessageContext;
 use Illuminate\Support\Facades\Bus;
 use Laravel\Ai\Attributes\Timeout;
@@ -83,6 +84,23 @@ test('word trigger sends an immediate reply', function () {
         ->hearMessage(telegramBotMessagePayload('I still write PHP', messageId: 20))
         ->reply()
         ->assertReplyText('PHP detected. Condolences.');
+});
+
+test('dice replies are limited to one immediate reply per chat', function () {
+    $chatId = fake()->numberBetween(-999999999999, -100000000000);
+    $handler = app(DiceHandler::class);
+
+    $firstDice = Mockery::mock(Nutgram::class);
+    $firstDice->shouldReceive('chatId')->once()->andReturn($chatId);
+    $firstDice->shouldReceive('sendDice')->once()->with($chatId);
+
+    $handler($firstDice);
+
+    $secondDice = Mockery::mock(Nutgram::class);
+    $secondDice->shouldReceive('chatId')->once()->andReturn($chatId);
+    $secondDice->shouldReceive('sendDice')->never();
+
+    $handler($secondDice);
 });
 
 test('summary threshold dispatches summary job', function () {

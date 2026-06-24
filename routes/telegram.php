@@ -6,6 +6,7 @@ use App\Telegram\Commands\RoastCommand;
 use App\Telegram\Commands\StartCommand;
 use App\Telegram\Commands\StatsCommand;
 use App\Telegram\Commands\SummaryCommand;
+use App\Telegram\Handlers\DiceHandler;
 use App\Telegram\Handlers\FallbackHandler;
 use App\Telegram\Handlers\MessageHandler;
 use SergiX44\Nutgram\Nutgram;
@@ -24,6 +25,8 @@ $bot->registerCommand(StartCommand::class);
 $bot->registerCommand(SummaryCommand::class);
 $bot->registerCommand(RoastCommand::class);
 $bot->registerCommand(StatsCommand::class);
+
+$bot->onDice(DiceHandler::class);
 
 $bot->onMessage(MessageHandler::class);
 $bot->fallback(FallbackHandler::class);

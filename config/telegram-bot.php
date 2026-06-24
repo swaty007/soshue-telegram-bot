@@ -14,6 +14,10 @@ return [
         'recent_messages_limit' => (int) env('TELEGRAM_RECENT_MESSAGES_LIMIT', 40),
     ],
 
+    'dice' => [
+        'decay_seconds' => (int) env('TELEGRAM_DICE_DECAY_SECONDS', 3600),
+    ],
+
     'questions' => [
         'enabled' => (bool) env('TELEGRAM_QUESTION_ANSWERS_ENABLED', true),
         'triggers' => [
