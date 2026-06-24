@@ -3,6 +3,7 @@
 namespace App\Jobs\Telegram;
 
 use App\Ai\Agents\DailyChatSummaryAgent;
+use App\Ai\Telegram\Moods\PoisonMood;
 use App\Ai\Telegram\Moods\TelegramBotMoodResolver;
 use App\Enums\TelegramChatSummaryStatus;
 use App\Models\TelegramChat;
@@ -20,7 +21,7 @@ class GenerateChatSummary implements ShouldQueue
 
     public int $tries = 3;
 
-    public int $timeout = 930;
+    public int $timeout = 1230;
 
     /**
      * Create a new job instance.
@@ -66,7 +67,7 @@ class GenerateChatSummary implements ShouldQueue
         ]);
 
         try {
-            $agent = new DailyChatSummaryAgent($moodResolver->resolve($context));
+            $agent = new DailyChatSummaryAgent(new PoisonMood); // $moodResolver->resolve($context)
             $response = $agent->prompt($agent->promptForMessages($context));
             $summaryText = $this->responseText($response);
 

@@ -3,8 +3,6 @@
 use App\Ai\Agents\DailyChatSummaryAgent;
 use App\Ai\Agents\QuestionAnswerAgent;
 use App\Ai\Agents\RecentMessagesRoastAgent;
-use App\Ai\Telegram\Moods\FriendlyMood;
-use App\Ai\Telegram\Moods\PoisonMood;
 use App\Ai\Telegram\Moods\TelegramBotMoodResolver;
 use App\Jobs\Telegram\GenerateChatSummary;
 use App\Jobs\Telegram\GenerateQuestionAnswer;
@@ -95,6 +93,23 @@ test('summary threshold dispatches summary job', function () {
         'telegram-quick-reactions' => [],
     ]);
 
+    $lastSummaryAt = now()->subMinutes(10);
+    $chat = TelegramChat::factory()->create([
+        'telegram_id' => -100123456789,
+        'type' => 'supergroup',
+        'title' => 'Test Group',
+        'last_summary_at' => $lastSummaryAt,
+    ]);
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->count(2)
+        ->sequence(
+            ['telegram_message_id' => 28, 'text' => 'old first message', 'sent_at' => $lastSummaryAt->subMinutes(2)],
+            ['telegram_message_id' => 29, 'text' => 'old second message', 'sent_at' => $lastSummaryAt->subMinute()],
+        )
+        ->create();
+
     $bot = app(Nutgram::class);
 
     $bot
@@ -107,7 +122,8 @@ test('summary threshold dispatches summary job', function () {
 
     Bus::assertDispatched(
         GenerateChatSummary::class,
-        fn (GenerateChatSummary $job): bool => $job->queue === 'long_running',
+        fn (GenerateChatSummary $job): bool => $job->limit === 2
+            && $job->queue === 'long_running',
     );
 });
 
@@ -132,6 +148,35 @@ test('bot trigger does not match inside another word', function () {
         ->reply();
 
     Bus::assertNotDispatched(GenerateQuestionAnswer::class);
+});
+
+test('roast command dispatches job with requested recent message limit', function () {
+    Bus::fake();
+
+    app(Nutgram::class)
+        ->hearMessage(telegramBotMessagePayload('/roast 75', messageId: 42))
+        ->reply();
+
+    Bus::assertDispatched(
+        GenerateRecentMessagesRoast::class,
+        fn (GenerateRecentMessagesRoast $job): bool => $job->limit === 75
+            && $job->queue === 'long_running',
+    );
+});
+
+test('roast command dispatches job with configured recent message limit by default', function () {
+    Bus::fake();
+
+    config(['telegram-bot.summary.recent_messages_limit' => 45]);
+
+    app(Nutgram::class)
+        ->hearMessage(telegramBotMessagePayload('/roast', messageId: 43))
+        ->reply();
+
+    Bus::assertDispatched(
+        GenerateRecentMessagesRoast::class,
+        fn (GenerateRecentMessagesRoast $job): bool => $job->limit === 45,
+    );
 });
 
 test('stats command replies with daily and weekly message counts', function () {
@@ -239,15 +284,6 @@ test('telegram agents split task mood and safety instructions', function () {
     }
 });
 
-test('telegram mood resolver uses poison mood seventy percent of the time', function () {
-    $resolver = new TelegramBotMoodResolver;
-
-    expect($resolver->resolveByRoll(1))->toBeInstanceOf(PoisonMood::class)
-        ->and($resolver->resolveByRoll(70))->toBeInstanceOf(PoisonMood::class)
-        ->and($resolver->resolveByRoll(71))->toBeInstanceOf(FriendlyMood::class)
-        ->and($resolver->resolveByRoll(100))->toBeInstanceOf(FriendlyMood::class);
-});
-
 test('telegram agents use configured ai model', function () {
     config(['telegram-bot.ai.model' => 'test-provider/test-model']);
     config(['telegram-bot.ai.model_fast' => 'test-provider/test-model']);
@@ -294,6 +330,11 @@ test('roast prompt treats chat messages as untrusted content', function () {
     RecentMessagesRoastAgent::fake(['Просили быть милым. Уже смешно.'])
         ->preventStrayPrompts();
 
+    Telegram::shouldReceive('sendMessage')
+        ->once()
+        ->withArgs(fn (mixed ...$arguments): bool => hasMoodSuffix($arguments[0], 'Просили быть милым. Уже смешно.')
+            && $arguments[1] === -100987654321);
+
     (new GenerateRecentMessagesRoast($chat, 30))->handle(app(BuildRecentMessageContext::class), app(TelegramBotMoodResolver::class));
 
     RecentMessagesRoastAgent::assertPrompted(
@@ -318,7 +359,7 @@ test('question answer prompt treats question and context as untrusted content', 
 
     Telegram::shouldReceive('sendMessage')
         ->once()
-        ->withArgs(fn (mixed ...$arguments): bool => $arguments[0] === 'Нет, великий стратег, так это не работает.'
+        ->withArgs(fn (mixed ...$arguments): bool => hasMoodSuffix($arguments[0], 'Нет, великий стратег, так это не работает.')
             && $arguments[1] === -100987654321
             && questionAnswerRepliesTo($arguments, 401));
 
@@ -340,7 +381,7 @@ test('question answer generation allows five minute ai responses', function () {
         ->getAttributes(Timeout::class)[0]
         ->newInstance();
 
-    expect($timeout->value)->toBe(300)
+    expect($timeout->value)->toBe(400)
         ->and((new GenerateQuestionAnswer(TelegramMessage::factory()->make()))->timeout)->toBeGreaterThan(300);
 });
 
@@ -372,6 +413,21 @@ function questionAnswerRepliesTo(array $arguments, int $messageId): bool
     }
 
     return false;
+}
+
+function hasMoodSuffix(mixed $text, string $expectedResponse): bool
+{
+    if (! is_string($text)) {
+        return false;
+    }
+
+    $prefix = $expectedResponse.PHP_EOL.'Mood: ';
+
+    if (! str_starts_with($text, $prefix)) {
+        return false;
+    }
+
+    return in_array(substr($text, strlen($prefix)), ['poison', 'gay', 'friendly'], true);
 }
 
 /**

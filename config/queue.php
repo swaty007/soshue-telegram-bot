@@ -49,7 +49,7 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => 'long_running',
-            'retry_after' => 1200, // must be greater than timeout
+            'retry_after' => 1250, // must be greater than timeout
             'block_for' => null,
             'after_commit' => true,
         ],
@@ -87,7 +87,7 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => 'long_running',
-            'retry_after' => 1200, // must be greater than timeout
+            'retry_after' => 1250, // must be greater than timeout
             'block_for' => null,
             'after_commit' => true,
         ],

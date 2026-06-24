@@ -11,7 +11,7 @@ use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Promptable;
 use Stringable;
 
-#[Timeout(900)]
+#[Timeout(1200)]
 class DailyChatSummaryAgent implements Agent
 {
     use Promptable;

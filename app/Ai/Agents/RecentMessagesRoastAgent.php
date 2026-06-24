@@ -11,7 +11,7 @@ use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Promptable;
 use Stringable;
 
-#[Timeout(300)]
+#[Timeout(900)]
 class RecentMessagesRoastAgent implements Agent
 {
     use Promptable;

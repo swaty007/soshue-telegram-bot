@@ -18,7 +18,7 @@ class GenerateQuestionAnswer implements ShouldQueue
 
     public int $tries = 2;
 
-    public int $timeout = 330;
+    public int $timeout = 430;
 
     /**
      * Create a new job instance.
@@ -45,11 +45,12 @@ class GenerateQuestionAnswer implements ShouldQueue
             (int) config('telegram-bot.summary.recent_messages_limit', 30),
         );
 
-        $agent = new QuestionAnswerAgent($moodResolver->resolve($message->text));
+        $mood = $moodResolver->resolve($message->text);
+        $agent = new QuestionAnswerAgent($mood);
         $response = $agent->prompt($agent->promptForQuestion($message->text, $context));
 
         Telegram::sendMessage(
-            $this->responseText($response),
+            $this->responseText($response).PHP_EOL.'Mood: '.$mood->key(),
             $message->chat->telegram_id,
             reply_parameters: ReplyParameters::make($message->telegram_message_id),
         );

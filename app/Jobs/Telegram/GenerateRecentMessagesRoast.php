@@ -17,7 +17,7 @@ class GenerateRecentMessagesRoast implements ShouldQueue
 
     public int $tries = 2;
 
-    public int $timeout = 330;
+    public int $timeout = 930;
 
     /**
      * Create a new job instance.
@@ -48,10 +48,14 @@ class GenerateRecentMessagesRoast implements ShouldQueue
             return;
         }
 
-        $agent = new RecentMessagesRoastAgent($moodResolver->resolve($context));
+        $mood = $moodResolver->resolve($context);
+        $agent = new RecentMessagesRoastAgent($mood);
         $response = $agent->prompt($agent->promptForMessages($context));
 
-        Telegram::sendMessage($this->responseText($response), $chat->telegram_id);
+        Telegram::sendMessage(
+            $this->responseText($response).PHP_EOL.'Mood: '.$mood->key(),
+            $chat->telegram_id
+        );
     }
 
     protected function responseText(mixed $response): string

@@ -3,8 +3,7 @@
 return [
     'ai' => [
         'model' => env('TELEGRAM_AI_MODEL', 'qwen/qwen3.6-27b'),
-        // 'model_fast' => env('TELEGRAM_AI_MODEL', 'qwen/qwen3.6-27b'),
-        'model_fast' => env('TELEGRAM_AI_MODEL', 'qwen/qwen3.6-35b-a3b'),
+        'model_fast' => env('TELEGRAM_AI_MODEL_FAST', 'qwen/qwen3.6-35b-a3b'),
         'queue' => env('TELEGRAM_AI_QUEUE', 'long_running'),
     ],
 

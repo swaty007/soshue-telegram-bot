@@ -87,7 +87,6 @@ class QuickReactionService
     {
         /** @var list<array{triggers: list<string>, reactions: list<array{type: string, text?: string, path?: string, caption?: string|null}>}> $configuredGroups */
         $configuredGroups = config('telegram-quick-reactions', []);
-
         return [
             ...$configuredGroups,
             ...$this->autoVideoReactionGroups($configuredGroups),

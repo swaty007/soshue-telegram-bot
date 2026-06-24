@@ -70,4 +70,17 @@ return [
             ],
         ],
     ],
+    [
+        'triggers' => ['марио', 'луинджи'],
+        'reactions' => [
+            [
+                'type' => QuickReactionService::Text,
+                'text' => 'https://www.youtube.com/watch?v=iO0ZXo3ORqc',
+            ],
+            [
+                'type' => QuickReactionService::Photo,
+                'path' => 'images/photo/марио.jpg',
+            ],
+        ],
+    ],
 ];

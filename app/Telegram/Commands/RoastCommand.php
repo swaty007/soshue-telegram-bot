@@ -9,11 +9,11 @@ use SergiX44\Nutgram\Nutgram;
 
 class RoastCommand extends Command
 {
-    protected string $command = 'roast';
+    protected string $command = 'roast ?{limit}';
 
-    protected ?string $description = 'Roast the recent chat context';
+    protected ?string $description = 'Generate a roast based on recent messages in the chat. You can enter the number of roasts you want to send.';
 
-    public function handle(Nutgram $bot, StoreTelegramMessage $storeTelegramMessage): void
+    public function handle(Nutgram $bot, ?string $limit, StoreTelegramMessage $storeTelegramMessage): void
     {
         $telegramMessage = $storeTelegramMessage->handle($bot);
 
@@ -25,9 +25,18 @@ class RoastCommand extends Command
 
         GenerateRecentMessagesRoast::dispatch(
             $telegramMessage->chat,
-            (int) config('telegram-bot.summary.recent_messages_limit', 30),
+            $this->messageLimit($limit),
         );
 
         $bot->sendMessage('Ща гляну последние сообщения и скажу, кто тут главный генератор шума.');
+    }
+
+    private function messageLimit(?string $limit): int
+    {
+        if (is_string($limit) && trim($limit) !== '') {
+            return max(1, (int) trim($limit));
+        }
+
+        return (int) config('telegram-bot.summary.recent_messages_limit', 30);
     }
 }

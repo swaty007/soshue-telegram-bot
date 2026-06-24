@@ -17,8 +17,12 @@ final class TelegramBotMoodResolver
             throw new InvalidArgumentException('Mood roll must be between 1 and 100.');
         }
 
-        if ($roll <= 70) {
+        if ($roll <= 45) {
             return new PoisonMood;
+        }
+
+        if ($roll <= 80) {
+            return new GayMood;
         }
 
         return new FriendlyMood;
