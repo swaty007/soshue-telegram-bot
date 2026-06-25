@@ -23,12 +23,14 @@ class RoastCommand extends Command
             return;
         }
 
+        $limit = min($this->messageLimit($limit), (int) config('telegram-bot.summary.threshold_max'));
+
         GenerateRecentMessagesRoast::dispatch(
             $telegramMessage->chat,
-            $this->messageLimit($limit),
+            $limit,
         );
 
-        $bot->sendMessage('Ща гляну последние сообщения и скажу, кто тут главный генератор шума.');
+        $bot->sendMessage("Ща гляну последние {$limit} сообщений и скажу, кто тут главный генератор шума.");
     }
 
     private function messageLimit(?string $limit): int
@@ -37,6 +39,6 @@ class RoastCommand extends Command
             return max(1, (int) trim($limit));
         }
 
-        return (int) config('telegram-bot.summary.recent_messages_limit', 30);
+        return (int) config('telegram-bot.summary.recent_messages_limit');
     }
 }

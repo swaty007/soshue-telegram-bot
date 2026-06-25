@@ -47,8 +47,6 @@ TEXT);
      */
     protected function messageStatsSince(int $telegramChatId, mixed $since): EloquentCollection
     {
-        $chatColumn = 'telegram_chat_id';
-        $sentAtColumn = 'sent_at';
         $userColumn = 'telegram_user_id';
         $countColumn = 'messages_count';
 
@@ -58,8 +56,8 @@ TEXT);
                 DB::raw("count(*) as {$countColumn}"),
             ])
             ->with('user')
-            ->where($chatColumn, $telegramChatId)
-            ->where($sentAtColumn, '>=', $since)
+            ->where('telegram_chat_id', $telegramChatId)
+            ->where('sent_at', '>=', $since)
             ->groupBy($userColumn)
             ->orderByDesc($countColumn)
             ->orderBy($userColumn)

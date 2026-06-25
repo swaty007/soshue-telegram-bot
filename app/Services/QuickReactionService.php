@@ -6,6 +6,7 @@ use App\Models\TelegramMessage;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Nutgram\Laravel\Facades\Telegram;
 use RuntimeException;
@@ -47,15 +48,30 @@ class QuickReactionService
     {
         $reaction = $this->findReaction($message->text);
 
-        if ($reaction === null) {
+        if (empty($reaction)) {
             return;
         }
 
-        $this->sendReaction(
-            $reaction,
-            $message->chat->telegram_id,
-            $message->telegram_message_id,
+        RateLimiter::attempt(
+            $this->rateLimitKey($message->chat->telegram_id, $reaction),
+            maxAttempts: 1,
+            callback: fn () => $this->sendReaction(
+                $reaction,
+                $message->chat->telegram_id,
+                $message->telegram_message_id,
+            ),
+            decaySeconds: 60 * 20,
         );
+    }
+
+    /**
+     * @param  array{type: string, text?: string, path?: string, caption?: string|null}  $reaction
+     */
+    private function rateLimitKey(int $chatId, array $reaction): string
+    {
+        $reactionKey = $reaction['path'] ?? $reaction['text'];
+
+        return "telegram:reaction:{$chatId}:reaction:{$reactionKey}";
     }
 
     /**
@@ -87,6 +103,7 @@ class QuickReactionService
     {
         /** @var list<array{triggers: list<string>, reactions: list<array{type: string, text?: string, path?: string, caption?: string|null}>}> $configuredGroups */
         $configuredGroups = config('telegram-quick-reactions', []);
+
         return [
             ...$configuredGroups,
             ...$this->autoVideoReactionGroups($configuredGroups),

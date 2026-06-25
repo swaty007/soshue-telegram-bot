@@ -42,7 +42,7 @@ class GenerateQuestionAnswer implements ShouldQueue
 
         $context = $buildRecentMessageContext->handle(
             $message->chat,
-            (int) config('telegram-bot.summary.recent_messages_limit', 30),
+            (int) config('telegram-bot.summary.recent_messages_limit'),
         );
 
         $mood = $moodResolver->resolve($message->text);

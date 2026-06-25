@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Bus;
 use Laravel\Ai\Attributes\Timeout;
 use Nutgram\Laravel\Facades\Telegram;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\DiceEmoji;
 use SergiX44\Nutgram\Telegram\Types\Message\Message;
 use SergiX44\Nutgram\Telegram\Types\Message\ReplyParameters;
 
@@ -92,7 +93,15 @@ test('dice replies are limited to one immediate reply per chat', function () {
 
     $firstDice = Mockery::mock(Nutgram::class);
     $firstDice->shouldReceive('chatId')->once()->andReturn($chatId);
-    $firstDice->shouldReceive('sendDice')->once()->with($chatId);
+    $firstDice->shouldReceive('sendDice')->once()->withArgs(
+        fn (int $receivedChatId, ?int $messageThreadId, DiceEmoji|string|null $emoji): bool => $receivedChatId === $chatId
+            && $messageThreadId === null
+            && in_array(
+                $emoji instanceof DiceEmoji ? $emoji->value : $emoji,
+                array_column(DiceEmoji::cases(), 'value'),
+                true,
+            ),
+    );
 
     $handler($firstDice);
 

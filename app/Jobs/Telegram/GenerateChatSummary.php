@@ -9,19 +9,22 @@ use App\Enums\TelegramChatSummaryStatus;
 use App\Models\TelegramChat;
 use App\Models\TelegramChatSummary;
 use App\Telegram\Support\BuildRecentMessageContext;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\UniqueFor;
 use Nutgram\Laravel\Facades\Telegram;
 use Stringable;
 use Throwable;
 
-class GenerateChatSummary implements ShouldQueue
+#[UniqueFor(1530)]
+class GenerateChatSummary implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     public int $tries = 3;
 
-    public int $timeout = 1230;
+    public int $timeout = 1530;
 
     /**
      * Create a new job instance.
@@ -31,6 +34,11 @@ class GenerateChatSummary implements ShouldQueue
         public ?int $limit = null,
     ) {
         $this->onQueue(config('telegram-bot.ai.queue', 'long_running'));
+    }
+
+    public function uniqueId(): string
+    {
+        return (string) $this->chat->telegram_id;
     }
 
     /**
@@ -44,7 +52,7 @@ class GenerateChatSummary implements ShouldQueue
             return;
         }
 
-        $limit = $this->limit ?? (int) config('telegram-bot.summary.threshold_max', 5000);
+        $limit = $this->limit ?? (int) config('telegram-bot.summary.threshold_max');
         $messages = $buildRecentMessageContext->messages($chat, $limit);
 
         if ($messages->isEmpty()) {

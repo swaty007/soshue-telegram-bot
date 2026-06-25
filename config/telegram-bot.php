@@ -8,14 +8,14 @@ return [
     ],
 
     'summary' => [
-        'threshold_min' => (int) env('TELEGRAM_SUMMARY_MESSAGE_THRESHOLD_MIN', 300),
+        'threshold_min' => (int) env('TELEGRAM_SUMMARY_MESSAGE_THRESHOLD_MIN', 400),
         'threshold_max' => (int) env('TELEGRAM_SUMMARY_MESSAGE_THRESHOLD_MAX', 5000),
         'daily_window_hours' => (int) env('TELEGRAM_SUMMARY_DAILY_WINDOW_HOURS', 48),
         'recent_messages_limit' => (int) env('TELEGRAM_RECENT_MESSAGES_LIMIT', 40),
     ],
 
     'dice' => [
-        'decay_seconds' => (int) env('TELEGRAM_DICE_DECAY_SECONDS', 60 * 15),
+        'decay_seconds' => (int) env('TELEGRAM_DICE_DECAY_SECONDS', 60),
     ],
 
     'questions' => [

@@ -2,8 +2,10 @@
 
 namespace App\Telegram\Handlers;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\RateLimiter;
 use SergiX44\Nutgram\Nutgram;
+use SergiX44\Nutgram\Telegram\Properties\DiceEmoji;
 
 class DiceHandler
 {
@@ -18,7 +20,7 @@ class DiceHandler
         RateLimiter::attempt(
             $this->rateLimitKey($chatId),
             maxAttempts: 1,
-            callback: fn () => $bot->sendDice($chatId),
+            callback: fn () => $bot->sendDice($chatId, emoji: $this->randomEmoji()),
             decaySeconds: $this->decaySeconds(),
         );
     }
@@ -30,6 +32,11 @@ class DiceHandler
 
     private function decaySeconds(): int
     {
-        return (int) config('telegram-bot.dice.decay_seconds', 3600);
+        return (int) config('telegram-bot.dice.decay_seconds');
+    }
+
+    private function randomEmoji(): string
+    {
+        return Arr::random(DiceEmoji::cases())->value;
     }
 }

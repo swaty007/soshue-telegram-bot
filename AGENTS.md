@@ -209,6 +209,12 @@ Vue components must have a single root element.
 
 </laravel-boost-guidelines>
 
+## Testing Anti-Patterns
+When adding mocks or test utilities, read [testing-anti-patterns.md](project-skills/test-driven-development/testing-anti-patterns.md) to avoid common pitfalls:
+- Testing mock behavior instead of real behavior
+- Adding test-only methods to production classes
+- Mocking without understanding dependencies
+
 ## Project Skills
 
 - Store internal project-scoped instructions in `project-skills/<scope>/SKILL.md` when they apply only to a specific project area, product module, business workflow, feature, integration, or team convention.

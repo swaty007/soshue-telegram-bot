@@ -40,7 +40,7 @@ class BuildRecentMessageContext
      */
     public function messages(TelegramChat $chat, ?int $limit = null): Collection
     {
-        $limit ??= (int) config('telegram-bot.summary.recent_messages_limit', 30);
+        $limit ??= (int) config('telegram-bot.summary.recent_messages_limit');
 
         return TelegramMessage::query()
             ->with('user')

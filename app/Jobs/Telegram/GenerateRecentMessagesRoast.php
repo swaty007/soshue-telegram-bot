@@ -6,18 +6,21 @@ use App\Ai\Agents\RecentMessagesRoastAgent;
 use App\Ai\Telegram\Moods\TelegramBotMoodResolver;
 use App\Models\TelegramChat;
 use App\Telegram\Support\BuildRecentMessageContext;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\UniqueFor;
 use Nutgram\Laravel\Facades\Telegram;
 use Stringable;
 
-class GenerateRecentMessagesRoast implements ShouldQueue
+#[UniqueFor(1230)]
+class GenerateRecentMessagesRoast implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     public int $tries = 2;
 
-    public int $timeout = 930;
+    public int $timeout = 1230;
 
     /**
      * Create a new job instance.
@@ -27,6 +30,11 @@ class GenerateRecentMessagesRoast implements ShouldQueue
         public int $limit = 30,
     ) {
         $this->onQueue(config('telegram-bot.ai.queue', 'long_running'));
+    }
+
+    public function uniqueId(): string
+    {
+        return (string) $this->chat->telegram_id;
     }
 
     /**

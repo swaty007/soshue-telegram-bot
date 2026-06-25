@@ -83,4 +83,13 @@ return [
             ],
         ],
     ],
+    [
+        'triggers' => ['300 бакс', '300$', '300 доллар', 'триста баксов', 'триста доллар'],
+        'reactions' => [
+            [
+                'type' => QuickReactionService::Video,
+                'path' => 'images/gif/300-баксов.mp4',
+            ],
+        ],
+    ],
 ];
