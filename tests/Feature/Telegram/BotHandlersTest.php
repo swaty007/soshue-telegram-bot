@@ -4,9 +4,11 @@ use App\Ai\Agents\DailyChatSummaryAgent;
 use App\Ai\Agents\QuestionAnswerAgent;
 use App\Ai\Agents\RecentMessagesRoastAgent;
 use App\Ai\Telegram\Moods\TelegramBotMoodResolver;
+use App\Events\Telegram\TelegramMessageCreated;
 use App\Jobs\Telegram\GenerateChatSummary;
 use App\Jobs\Telegram\GenerateQuestionAnswer;
 use App\Jobs\Telegram\GenerateRecentMessagesRoast;
+use App\Listeners\Telegram\ChatSummaryListener;
 use App\Models\TelegramChat;
 use App\Models\TelegramMessage;
 use App\Models\TelegramUser;
@@ -147,11 +149,86 @@ test('summary threshold dispatches summary job', function () {
         ->hearMessage(telegramBotMessagePayload('second message', messageId: 31))
         ->reply();
 
+    $bot
+        ->hearMessage(telegramBotMessagePayload('third message', messageId: 32))
+        ->reply();
+
     Bus::assertDispatched(
         GenerateChatSummary::class,
-        fn (GenerateChatSummary $job): bool => $job->limit === 2
+        fn (GenerateChatSummary $job): bool => $job->limit === GenerateChatSummary::MINIMUM_MESSAGE_LIMIT
             && $job->queue === 'long_running',
     );
+    Bus::assertDispatchedOnce(GenerateChatSummary::class);
+});
+
+test('summary threshold only counts messages with text', function () {
+    Bus::fake();
+
+    config([
+        'telegram-bot.summary.threshold_min' => 3,
+        'telegram-quick-reactions' => [],
+    ]);
+
+    $lastSummaryAt = now()->subMinutes(10);
+    $chat = TelegramChat::factory()->create([
+        'last_summary_at' => $lastSummaryAt,
+    ]);
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 40,
+            'text' => 'first text message',
+            'sent_at' => $lastSummaryAt->copy()->addMinute(),
+        ]);
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 41,
+            'text' => null,
+            'sent_at' => $lastSummaryAt->copy()->addMinutes(2),
+        ]);
+
+    $triggerMessage = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 42,
+            'text' => null,
+            'sent_at' => $lastSummaryAt->copy()->addMinutes(3),
+        ]);
+
+    app(ChatSummaryListener::class)->handle(new TelegramMessageCreated($triggerMessage->load('chat')));
+
+    Bus::assertNotDispatched(GenerateChatSummary::class);
+
+    $secondTextMessage = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 43,
+            'text' => 'second text message',
+            'sent_at' => $lastSummaryAt->copy()->addMinutes(4),
+        ]);
+
+    app(ChatSummaryListener::class)->handle(new TelegramMessageCreated($secondTextMessage->load('chat')));
+
+    Bus::assertNotDispatched(GenerateChatSummary::class);
+
+    $thirdTextMessage = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 44,
+            'text' => 'third text message',
+            'sent_at' => $lastSummaryAt->copy()->addMinutes(5),
+        ]);
+
+    app(ChatSummaryListener::class)->handle(new TelegramMessageCreated($thirdTextMessage->load('chat')));
+
+    Bus::assertDispatched(
+        GenerateChatSummary::class,
+        fn (GenerateChatSummary $job): bool => $job->limit === GenerateChatSummary::MINIMUM_MESSAGE_LIMIT,
+    );
+    Bus::assertDispatchedOnce(GenerateChatSummary::class);
 });
 
 test('question addressed to bot dispatches question answer job', function () {
@@ -291,6 +368,66 @@ test('summary job uses ai fake and stores generated summary', function () {
     ]);
 
     $bot->assertReplyText('Релиз горит, тесты красные, команда делает вид, что это стратегия.');
+});
+
+test('summary job summarizes only messages inside the counted text window', function () {
+    $bot = app(Nutgram::class);
+    $chat = TelegramChat::factory()->create(['telegram_id' => -100987654321]);
+    $lastSummaryAt = now()->subHour();
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 10,
+            'text' => 'Already summarized message.',
+            'sent_at' => $lastSummaryAt->copy()->subMinute(),
+        ]);
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 11,
+            'text' => 'First fresh text.',
+            'sent_at' => $lastSummaryAt->copy()->addMinute(),
+        ]);
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 12,
+            'text' => null,
+            'sent_at' => $lastSummaryAt->copy()->addMinutes(2),
+        ]);
+
+    TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 13,
+            'text' => 'Second fresh text.',
+            'sent_at' => $lastSummaryAt->copy()->addMinutes(3),
+        ]);
+
+    DailyChatSummaryAgent::fake(['Свежие сообщения пересказаны.'])
+        ->preventStrayPrompts();
+
+    (new GenerateChatSummary($chat, 2))->handle(app(BuildRecentMessageContext::class), app(TelegramBotMoodResolver::class));
+
+    DailyChatSummaryAgent::assertPrompted(
+        fn ($prompt): bool => $prompt->contains('First fresh text.')
+            && $prompt->contains('Second fresh text.')
+            && ! $prompt->contains('Already summarized message.'),
+    );
+
+    assertDatabaseHas('telegram_chat_summaries', [
+        'telegram_chat_id' => $chat->id,
+        'period_started_at' => $lastSummaryAt->copy()->addMinute(),
+        'period_ended_at' => $lastSummaryAt->copy()->addMinutes(3),
+        'message_count' => 2,
+        'summary' => 'Свежие сообщения пересказаны.',
+        'status' => 'completed',
+    ]);
+
+    $bot->assertReplyText('Свежие сообщения пересказаны.');
 });
 
 test('telegram agents split task mood and safety instructions', function () {

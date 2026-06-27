@@ -32,5 +32,10 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="TELEGRAM_SUMMARY_MESSAGE_THRESHOLD_MIN" value="400"/>
+        <env name="TELEGRAM_SUMMARY_MESSAGE_THRESHOLD_MAX" value="5000"/>
+        <env name="TELEGRAM_SUMMARY_DAILY_WINDOW_HOURS" value="24"/>
+        <env name="TELEGRAM_RECENT_MESSAGES_LIMIT" value="40"/>
+        <env name="TELEGRAM_QUESTION_ANSWERS_ENABLED" value="true"/>
     </php>
 </phpunit>

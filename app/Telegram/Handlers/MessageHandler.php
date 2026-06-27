@@ -19,7 +19,7 @@ class MessageHandler
     {
         $telegramMessage = $this->storeTelegramMessage->handle($bot);
 
-        if ($telegramMessage === null) {
+        if (empty($telegramMessage)) {
             return;
         }
 

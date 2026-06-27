@@ -5,6 +5,7 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
 use Nutgram\Laravel\Log\NutgramFormatter;
+use Nutgram\Laravel\Log\NutgramLogger;
 
 return [
 
@@ -119,7 +120,7 @@ return [
 
         'telegram' => [
             'driver' => 'custom',
-            'via' => \Nutgram\Laravel\Log\NutgramLogger::class,
+            'via' => NutgramLogger::class,
             'level' => 'debug',
             'chat_id' => env('NUTGRAM_LOG_CHAT_ID'), // any chat_id where bot can write messages
         ],

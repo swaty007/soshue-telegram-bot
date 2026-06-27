@@ -14,6 +14,10 @@ return [
         'recent_messages_limit' => (int) env('TELEGRAM_RECENT_MESSAGES_LIMIT', 40),
     ],
 
+    'messages' => [
+        'freshness_minutes' => (int) env('TELEGRAM_MESSAGE_FRESHNESS_MINUTES', 5),
+    ],
+
     'dice' => [
         'decay_seconds' => (int) env('TELEGRAM_DICE_DECAY_SECONDS', 60),
     ],
