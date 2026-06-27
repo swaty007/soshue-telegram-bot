@@ -5,6 +5,7 @@ use App\Listeners\Telegram\QuickReactionListener;
 use App\Models\TelegramChat;
 use App\Models\TelegramMessage;
 use App\Models\TelegramUser;
+use App\Services\QuickReactionService;
 use App\Telegram\Support\BuildRecentMessageContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -58,6 +59,69 @@ test('quick reaction groups can match multiple triggers', function () {
 
     app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
 });
+
+test('quick reaction phrase triggers can match words in any order with one missing word', function (string $text, bool $matches) {
+    config([
+        'telegram-quick-reactions' => [
+            [
+                'triggers' => ['good-morning-vietnam'],
+                'reactions' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'Vietnam reply.',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $reaction = app(QuickReactionService::class)->findReaction($text);
+
+    expect($reaction === null)->toBe(! $matches);
+
+    if ($matches) {
+        expect($reaction)->toMatchArray([
+            'type' => 'text',
+            'text' => 'Vietnam reply.',
+        ]);
+    }
+})->with([
+    'words reordered' => ['vietnam morning', true],
+    'first word missing' => ['good vietnam', true],
+    'last word missing and reordered' => ['morning good', true],
+    'too few words' => ['good afternoon', false],
+]);
+
+test('quick reaction short triggers match only as standalone words', function (string $trigger, string $text, bool $matches) {
+    config([
+        'telegram-quick-reactions' => [
+            [
+                'triggers' => [$trigger],
+                'reactions' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'Matched reply.',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $reaction = app(QuickReactionService::class)->findReaction($text);
+
+    expect($reaction === null)->toBe(! $matches);
+
+    if ($matches) {
+        expect($reaction)->toMatchArray([
+            'type' => 'text',
+            'text' => 'Matched reply.',
+        ]);
+    }
+})->with([
+    'short trigger standalone' => ['php', 'php?', true],
+    'short trigger inside word' => ['php', 'phpstorm?', false],
+    'short phrase word inside another word' => ['good-morning-vietnam', 'goodbye vietnam?', false],
+]);
 
 test('quick reactions can send media replies', function (string $type, string $method) {
     $chat = TelegramChat::factory()->create(['telegram_id' => -100123456789]);
@@ -199,7 +263,8 @@ function quickReactionRepliesTo(array $arguments, int $messageId): bool
 test('recent message context is built in chronological order', function () {
     $chat = TelegramChat::factory()->create();
     $user = TelegramUser::factory()->create([
-        'first_name' => 'Alex',
+        'first_name' => 'alex',
+        'last_name' => null,
         'username' => 'alex',
     ]);
 

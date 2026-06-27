@@ -147,11 +147,16 @@ test('summary threshold dispatches summary job', function () {
         ->hearMessage(telegramBotMessagePayload('second message', messageId: 31))
         ->reply();
 
+    $bot
+        ->hearMessage(telegramBotMessagePayload('third message', messageId: 32))
+        ->reply();
+
     Bus::assertDispatched(
         GenerateChatSummary::class,
-        fn (GenerateChatSummary $job): bool => $job->limit === 2
+        fn (GenerateChatSummary $job): bool => $job->limit === 50
             && $job->queue === 'long_running',
     );
+    Bus::assertDispatchedOnce(GenerateChatSummary::class);
 });
 
 test('question addressed to bot dispatches question answer job', function () {
