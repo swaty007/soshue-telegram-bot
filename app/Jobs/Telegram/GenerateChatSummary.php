@@ -22,6 +22,8 @@ class GenerateChatSummary implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
+    public const int MINIMUM_MESSAGE_LIMIT = 50;
+
     public int $tries = 3;
 
     public int $timeout = 1530;

@@ -1,13 +1,18 @@
 <?php
 
 use App\Events\Telegram\TelegramMessageCreated;
+use App\Jobs\Telegram\GenerateQuestionAnswer;
+use App\Listeners\Telegram\QuestionAnswerListener;
 use App\Listeners\Telegram\QuickReactionListener;
 use App\Models\TelegramChat;
 use App\Models\TelegramMessage;
 use App\Models\TelegramUser;
+use App\Services\QuickReactionService;
 use App\Telegram\Support\BuildRecentMessageContext;
+use App\Telegram\Support\TelegramTriggerMatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Bus;
 use Nutgram\Laravel\Facades\Telegram;
 use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
 use SergiX44\Nutgram\Telegram\Types\Message\ReplyParameters;
@@ -58,6 +63,175 @@ test('quick reaction groups can match multiple triggers', function () {
 
     app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
 });
+
+test('quick reactions ignore forwarded messages', function () {
+    $chat = TelegramChat::factory()->create(['telegram_id' => -100123456789]);
+    $message = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 778,
+            'text' => 'time for world of tanks',
+            'payload' => [
+                'message_id' => 778,
+                'date' => now()->timestamp,
+                'chat' => [
+                    'id' => -100123456789,
+                    'type' => 'supergroup',
+                    'title' => 'Test Group',
+                ],
+                'text' => 'time for world of tanks',
+                'forward_origin' => [
+                    'type' => 'user',
+                    'date' => now()->subMinute()->timestamp,
+                    'sender_user' => [
+                        'id' => 43,
+                        'is_bot' => false,
+                        'first_name' => 'Forwarded',
+                    ],
+                ],
+            ],
+            'sent_at' => now(),
+        ]);
+
+    config([
+        'telegram-quick-reactions' => [
+            [
+                'triggers' => ['world of tanks'],
+                'reactions' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'Tank reply.',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    Telegram::shouldReceive('sendMessage')->never();
+
+    app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
+});
+
+test('quick reactions use configured message freshness window', function () {
+    config(['telegram-bot.messages.freshness_minutes' => 60]);
+
+    $chat = TelegramChat::factory()->create(['telegram_id' => -100123456789]);
+    $message = TelegramMessage::factory()
+        ->for($chat, 'chat')
+        ->create([
+            'telegram_message_id' => 779,
+            'text' => 'time for world of tanks',
+            'sent_at' => now()->subMinutes(10),
+        ]);
+
+    config([
+        'telegram-quick-reactions' => [
+            [
+                'triggers' => ['world of tanks'],
+                'reactions' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'Tank reply.',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    Telegram::shouldReceive('sendMessage')
+        ->once()
+        ->withArgs(fn (mixed ...$arguments): bool => $arguments[0] === 'Tank reply.'
+            && $arguments[1] === -100123456789
+            && quickReactionRepliesTo($arguments, 779));
+
+    app(QuickReactionListener::class)->handle(new TelegramMessageCreated($message->load('chat')));
+});
+
+test('question answers use configured message freshness window', function () {
+    Bus::fake();
+    config(['telegram-bot.messages.freshness_minutes' => 60]);
+
+    $message = TelegramMessage::factory()->create([
+        'text' => 'бот, что тут происходит?',
+        'sent_at' => now()->subMinutes(10),
+    ]);
+
+    app(QuestionAnswerListener::class)->handle(new TelegramMessageCreated($message));
+
+    Bus::assertDispatched(GenerateQuestionAnswer::class);
+});
+
+test('telegram message factory uses configured freshness window', function () {
+    config(['telegram-bot.messages.freshness_minutes' => 60]);
+    $oldestAllowedSentAt = now()->subMinutes(60);
+
+    $message = TelegramMessage::factory()->make();
+
+    expect($message->sent_at)->toBeGreaterThanOrEqual($oldestAllowedSentAt);
+});
+
+test('quick reaction phrase triggers can match words in any order', function (string $text, bool $matches) {
+    config([
+        'telegram-quick-reactions' => [
+            [
+                'triggers' => ['good-morning-vietnam'],
+                'reactions' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'Vietnam reply.',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $reaction = app(QuickReactionService::class)->findReaction($text);
+
+    expect($reaction === null)->toBe(! $matches);
+
+    if ($matches) {
+        expect($reaction)->toMatchArray([
+            'type' => 'text',
+            'text' => 'Vietnam reply.',
+        ]);
+    }
+})->with([
+    'words reordered' => ['vietnam morning good', true],
+    'words reordered with punctuation' => ['vietnam, good morning!', true],
+    'missing word' => ['good vietnam', minimumWordsForPartialMatch() < 3],
+    'too few matching words' => ['good afternoon', false],
+]);
+
+test('quick reaction short triggers match only as standalone words', function (string $trigger, string $text, bool $matches) {
+    config([
+        'telegram-quick-reactions' => [
+            [
+                'triggers' => [$trigger],
+                'reactions' => [
+                    [
+                        'type' => 'text',
+                        'text' => 'Matched reply.',
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $reaction = app(QuickReactionService::class)->findReaction($text);
+
+    expect($reaction === null)->toBe(! $matches);
+
+    if ($matches) {
+        expect($reaction)->toMatchArray([
+            'type' => 'text',
+            'text' => 'Matched reply.',
+        ]);
+    }
+})->with([
+    'short trigger standalone' => ['php', 'php?', true],
+    'short trigger inside word' => ['php', 'phpstorm?', false],
+    'short phrase word inside another word' => ['good-morning-vietnam', 'goodbye vietnam?', false],
+]);
 
 test('quick reactions can send media replies', function (string $type, string $method) {
     $chat = TelegramChat::factory()->create(['telegram_id' => -100123456789]);
@@ -196,10 +370,29 @@ function quickReactionRepliesTo(array $arguments, int $messageId): bool
     return false;
 }
 
+function minimumWordsForPartialMatch(): int
+{
+    $constant = (new ReflectionClass(TelegramTriggerMatcher::class))
+        ->getReflectionConstant('MinimumWordsForPartialMatch');
+
+    if ($constant === false) {
+        throw new RuntimeException('Missing MinimumWordsForPartialMatch constant.');
+    }
+
+    $value = $constant->getValue();
+
+    if (! is_int($value)) {
+        throw new RuntimeException('MinimumWordsForPartialMatch must be an integer.');
+    }
+
+    return $value;
+}
+
 test('recent message context is built in chronological order', function () {
     $chat = TelegramChat::factory()->create();
     $user = TelegramUser::factory()->create([
-        'first_name' => 'Alex',
+        'first_name' => 'alex',
+        'last_name' => null,
         'username' => 'alex',
     ]);
 

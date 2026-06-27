@@ -3,27 +3,17 @@
 namespace App\Services;
 
 use App\Models\TelegramMessage;
+use App\Telegram\Support\QuickReactionSender;
+use App\Telegram\Support\TelegramTriggerMatcher;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
-use Nutgram\Laravel\Facades\Telegram;
-use RuntimeException;
-use SergiX44\Nutgram\Telegram\Types\Internal\InputFile;
-use SergiX44\Nutgram\Telegram\Types\Message\ReplyParameters;
 use Symfony\Component\Finder\SplFileInfo;
 
 class QuickReactionService
 {
-    public const string Text = 'text';
-
-    public const string Photo = 'photo';
-
-    public const string Video = 'video';
-
-    public const string Audio = 'audio';
-
     private const string AutoVideoDirectory = 'images';
 
     private const string AutoAudioDirectory = 'audio';
@@ -33,16 +23,20 @@ class QuickReactionService
      */
     private const array AutoReactionMediaTypes = [
         self::AutoVideoDirectory => [
-            'mp4' => self::Video,
-            'webp' => self::Photo,
-            'png' => self::Photo,
-            'gif' => self::Photo,
+            'mp4' => QuickReactionSender::Video,
+            'webp' => QuickReactionSender::Photo,
+            'png' => QuickReactionSender::Photo,
+            'gif' => QuickReactionSender::Photo,
         ],
         self::AutoAudioDirectory => [
-            'mp3' => self::Audio,
-            'ogg' => self::Audio,
+            'mp3' => QuickReactionSender::Audio,
+            'ogg' => QuickReactionSender::Audio,
         ],
     ];
+
+    public function __construct(
+        protected QuickReactionSender $sender,
+    ) {}
 
     public function sendForMessage(TelegramMessage $message): void
     {
@@ -55,7 +49,7 @@ class QuickReactionService
         RateLimiter::attempt(
             $this->rateLimitKey($message->chat->telegram_id, $reaction),
             maxAttempts: 1,
-            callback: fn () => $this->sendReaction(
+            callback: fn () => $this->sender->send(
                 $reaction,
                 $message->chat->telegram_id,
                 $message->telegram_message_id,
@@ -83,10 +77,8 @@ class QuickReactionService
             return null;
         }
 
-        $normalizedText = Str::lower($text);
-
         foreach ($this->reactionGroups() as $group) {
-            if (! Str::contains($normalizedText, $this->normalizedTriggers($group['triggers']))) {
+            if (! TelegramTriggerMatcher::matchesAny($text, $group['triggers'])) {
                 continue;
             }
 
@@ -117,7 +109,7 @@ class QuickReactionService
     protected function autoVideoReactionGroups(array $configuredGroups): array
     {
         $configuredTriggers = collect($configuredGroups)
-            ->flatMap(fn (array $group): array => $this->normalizedTriggers($group['triggers']))
+            ->flatMap(fn (array $group): array => TelegramTriggerMatcher::normalizeMany($group['triggers']))
             ->all();
 
         return $this->autoReactionMediaFiles()
@@ -171,92 +163,5 @@ class QuickReactionService
             ->unique()
             ->values()
             ->all();
-    }
-
-    /**
-     * @param  list<string>  $triggers
-     * @return list<string>
-     */
-    protected function normalizedTriggers(array $triggers): array
-    {
-        return collect($triggers)
-            ->map(fn (string $trigger): string => trim($trigger))
-            ->filter()
-            ->map(fn (string $trigger): string => Str::lower($trigger))
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  array{type: string, text?: string, path?: string, caption?: string|null}  $reaction
-     */
-    protected function sendReaction(array $reaction, int $chatId, int $replyToMessageId): void
-    {
-        $replyParameters = ReplyParameters::make($replyToMessageId);
-
-        match ($reaction['type']) {
-            self::Text => Telegram::sendMessage($reaction['text'] ?? '', $chatId, reply_parameters: $replyParameters),
-            self::Photo, self::Video, self::Audio => $this->sendMediaReaction($reaction, $chatId, $replyParameters),
-            default => null,
-        };
-    }
-
-    /**
-     * @param  array{type: string, path?: string, caption?: string|null}  $reaction
-     */
-    protected function sendMediaReaction(array $reaction, int $chatId, ReplyParameters $replyParameters): void
-    {
-        $mediaPath = $reaction['path'] ?? null;
-
-        if ($mediaPath === null) {
-            return;
-        }
-
-        $path = resource_path($mediaPath);
-
-        if (! is_file($path)) {
-            report(new RuntimeException("Quick reaction media file does not exist: {$path}"));
-
-            return;
-        }
-
-        $file = fopen($path, 'rb');
-
-        if ($file === false) {
-            report(new RuntimeException("Quick reaction media file cannot be opened: {$path}"));
-
-            return;
-        }
-
-        $inputFile = InputFile::make($file, basename($path));
-        $caption = $reaction['caption'] ?? null;
-
-        try {
-            $caption !== null && trim($caption) !== ''
-                ? $this->sendMediaWithCaption($reaction['type'], $inputFile, $chatId, $replyParameters, $caption)
-                : $this->sendMedia($reaction['type'], $inputFile, $chatId, $replyParameters);
-        } finally {
-            fclose($file);
-        }
-    }
-
-    protected function sendMedia(string $type, InputFile $file, int $chatId, ReplyParameters $replyParameters): void
-    {
-        match ($type) {
-            self::Photo => Telegram::sendPhoto($file, $chatId, reply_parameters: $replyParameters),
-            self::Video => Telegram::sendVideo($file, $chatId, reply_parameters: $replyParameters),
-            self::Audio => Telegram::sendAudio($file, $chatId, reply_parameters: $replyParameters),
-            default => null,
-        };
-    }
-
-    protected function sendMediaWithCaption(string $type, InputFile $file, int $chatId, ReplyParameters $replyParameters, string $caption): void
-    {
-        match ($type) {
-            self::Photo => Telegram::sendPhoto($file, $chatId, caption: $caption, reply_parameters: $replyParameters),
-            self::Video => Telegram::sendVideo($file, $chatId, caption: $caption, reply_parameters: $replyParameters),
-            self::Audio => Telegram::sendAudio($file, $chatId, caption: $caption, reply_parameters: $replyParameters),
-            default => null,
-        };
     }
 }

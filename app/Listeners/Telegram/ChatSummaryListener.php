@@ -21,7 +21,7 @@ class ChatSummaryListener
             return;
         }
 
-        GenerateChatSummary::dispatch($chat, max($messagesCount, 50));
+        GenerateChatSummary::dispatch($chat, max($messagesCount, GenerateChatSummary::MINIMUM_MESSAGE_LIMIT));
     }
 
     protected function messagesCountToAnalyze(TelegramChat $chat): ?int
@@ -45,6 +45,7 @@ class ChatSummaryListener
 
         $messagesCount = $chat->messages()
             ->where('sent_at', '>=', $since)
+            ->whereNotNull('text')
             ->count();
 
         if ($messagesCount >= $threshold) {

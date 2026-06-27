@@ -40,8 +40,9 @@ class SummaryCommand extends Command
 
         $messagesCount = $chat->messages()
             ->where('sent_at', '>=', $since)
+            ->whereNotNull('text')
             ->count();
-        $messagesCount = max($messagesCount, 50);
+        $messagesCount = max($messagesCount, GenerateChatSummary::MINIMUM_MESSAGE_LIMIT);
 
         GenerateChatSummary::dispatch($chat, (int) $messagesCount); // config('telegram-bot.summary.threshold_max', 5000)
 

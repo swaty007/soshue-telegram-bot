@@ -19,7 +19,8 @@ class TelegramMessageFactory extends Factory
      */
     public function definition(): array
     {
-        $sentAt = fake()->dateTimeBetween('-1 day');
+        $freshnessMinutes = (int) config('telegram-bot.messages.freshness_minutes');
+        $sentAt = fake()->dateTimeBetween("-{$freshnessMinutes} minutes", 'now');
         $text = fake()->sentence();
 
         return [
@@ -30,6 +31,11 @@ class TelegramMessageFactory extends Factory
             'payload' => [
                 'message_id' => fake()->unique()->randomNumber(7),
                 'date' => $sentAt->getTimestamp(),
+                'chat' => [
+                    'id' => fake()->numberBetween(-999999999999, -100000000000),
+                    'type' => 'supergroup',
+                    'title' => fake()->words(2, true),
+                ],
                 'text' => $text,
             ],
             'sent_at' => $sentAt,
