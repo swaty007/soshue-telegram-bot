@@ -22,7 +22,7 @@ class DailyChatSummaryAgent implements Agent
 
     public function model(): string
     {
-        return config('telegram-bot.ai.model', 'qwen/qwen3.6-27b');
+        return config('telegram-bot.ai.model', 'qwen/qwen3.8-27b');
     }
 
     /**
